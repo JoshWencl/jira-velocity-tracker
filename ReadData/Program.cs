@@ -16,7 +16,7 @@ namespace ReadData
             using (var csv = new CsvHelper.CsvWriter(sr, CultureInfo.InvariantCulture))
             {
                 int start = 4200;
-                int stop = 6628;
+                int stop = 6400;
                 int parallelThreads = 50;
                 int failCounter = 0;
                 foreach (var request in JiraHttpRequest.getWorkItemObjects(start, stop, parallelThreads))
@@ -39,13 +39,14 @@ namespace ReadData
 
         public static IEnumerable<DataObject> FlattenItems(Request request)
         {
-            if (!request.issueRequestResponse["key"].ToString().Contains("POB"))
+            if (!request.issueRequestResponse["key"].ToString().Contains("POB") 
+                || !request.issueRequestResponse["fields"]["issuetype"]["name"].ToString().Contains("Story"))
             {
                 throw new Exception("This is not an OLB story");
             }
             var transitions = new List<Transition>();
             lock (transitions)
-                foreach(var requestResponse in request.issueChangeLogRequestResponses)
+                foreach (var requestResponse in request.issueChangeLogRequestResponses)
                 {
                     var values = requestResponse["values"].Where(v => v["items"].Any(i => i.Value<string>("field") == "status"));
                     foreach (var value in values)
@@ -54,7 +55,7 @@ namespace ReadData
                         {
                             transitions.Add(new Transition
                             {
-                                created = value.Value<string>("created"),
+                                created = value.Value<DateTime>("created"),
                                 toString = item.Value<string>("to"),
                                 fromString = item.Value<string>("from")
                             });
@@ -81,6 +82,7 @@ namespace ReadData
                 qa_sitting_time = transitionHelper.getQASittingTime(),
                 in_dev_time = transitionHelper.getInDevTime(),
                 dev_sitting_time = transitionHelper.getDevSittingTime(),
+                time_to_done = transitionHelper.getTotalDevelopmentTime(),
                 doneDate = transitionHelper.getDoneDate()
             };
         }

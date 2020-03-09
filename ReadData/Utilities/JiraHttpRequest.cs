@@ -11,8 +11,10 @@ namespace ReadData.Utilities
 {
     public static class JiraHttpRequest
     {
-       static string auth = "";
-       static string token = "";
+        static string auth = "";
+        static string token = "";
+        static string url = "";
+        static string workitemPrefix = "";
 
         public static List<Request> getWorkItemObjects(int startNumber, int stopNumber, int parallelThreads)
         {
@@ -25,9 +27,9 @@ namespace ReadData.Utilities
             {
                 List<JObject> changeLogs = new List<JObject>();
                 // The changelog will not return more than 100 entries, so we have to make the call twice
-                changeLogs.Add(JsonConvert.DeserializeObject<JObject>(GetRest($"https://autoclub.atlassian.net/rest/api/3/issue/POB-{i}/changelog").Content));
-                changeLogs.Add(JsonConvert.DeserializeObject<JObject>(GetRest($"https://autoclub.atlassian.net/rest/api/3/issue/POB-{i}/changelog?startAt=100").Content));
-                var issueRequestResponse = JsonConvert.DeserializeObject<JObject>(GetRest($"https://autoclub.atlassian.net/rest/api/3/issue/POB-{i}").Content);
+                changeLogs.Add(JsonConvert.DeserializeObject<JObject>(GetRest($"{url}/rest/api/3/issue/{workitemPrefix}-{i}/changelog").Content));
+                changeLogs.Add(JsonConvert.DeserializeObject<JObject>(GetRest($"{url}/rest/api/3/issue/{workitemPrefix}-{i}/changelog?startAt=100").Content));
+                var issueRequestResponse = JsonConvert.DeserializeObject<JObject>(GetRest($"{url}/rest/api/3/issue/{workitemPrefix}-{i}").Content);
                 requests.Add(new Request
                 {
                     id = i,

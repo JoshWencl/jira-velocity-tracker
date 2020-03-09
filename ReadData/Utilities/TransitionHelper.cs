@@ -10,87 +10,60 @@ namespace ReadData.Utilities
         public TransitionHelper(Issue issue)
         {
             this.issue = issue;
+            calcTransitionTimes();
         }
-         
+
         public double GetTotalQAHours()
         {
             try
             {
-                return getTimeBetweenCodes(TransitionCodes.ReadyForQA, TransitionCodes.QADone, issue);
+                return getTimeBetweenCodes(TransitionCodes.ReadyForQA, TransitionCodes.QADone);
 
             }
             catch (Exception e)
             {
                 if (e.ToString().Contains("Sequence contains no matching element"))
                 {
-                    return getTimeBetweenCodes(TransitionCodes.InQA, TransitionCodes.QADone, issue);
+                    return getTimeBetweenCodes(TransitionCodes.InQA, TransitionCodes.QADone);
                 }
                 else
                 {
                     throw e;
                 }
             }
-        }
-
-        public double getInQATime()
-        {
-            return getTimeBetweenCodes(TransitionCodes.InQA, TransitionCodes.QADone, issue);
         }
 
         public double getQASittingTime()
         {
-            try
-            {
-                return getTimeBetweenCodes(TransitionCodes.ReadyForQA, TransitionCodes.InQA, issue);
-            }
-            catch (Exception e)
-            {
-                if (e.ToString().Contains("Sequence contains no matching element"))
-                {
-                    return 0;
-                }
-                else
-                {
-                    throw e;
-                }
-            }
+            return getTimeSpentInCode(TransitionCodes.ReadyForQA);
+        }
+
+        public double getInQATime()
+        {
+            return getTimeSpentInCode(TransitionCodes.InQA);
         }
 
         public double getDevSittingTime()
         {
-            return getTimeBetweenCodes(TransitionCodes.ReadyForDev, TransitionCodes.InDev, issue);
+            return getTimeSpentInCode(TransitionCodes.ReadyForDev);
         }
 
         public double getInDevTime()
         {
-            try
-            {
-                return getTimeBetweenCodes(TransitionCodes.InDev, TransitionCodes.ReadyForQA, issue);
-            }
-            catch (Exception e)
-            {
-                if (e.ToString().Contains("Sequence contains no matching element"))
-                {
-                    return getTimeBetweenCodes(TransitionCodes.InDev, TransitionCodes.InQA, issue);
-                }
-                else
-                {
-                    throw e;
-                }
-            }
+            return getTimeSpentInCode(TransitionCodes.InDev);
         }
 
         public double getTotalDevHours()
         {
             try
             {
-                return getTimeBetweenCodes(TransitionCodes.ReadyForDev, TransitionCodes.ReadyForQA, issue);
+                return getTimeBetweenCodes(TransitionCodes.ReadyForDev, TransitionCodes.ReadyForQA);
             }
             catch (Exception e)
             {
                 if (e.ToString().Contains("Sequence contains no matching element"))
                 {
-                    return getTimeBetweenCodes(TransitionCodes.ReadyForDev, TransitionCodes.InQA, issue);
+                    return getTimeBetweenCodes(TransitionCodes.ReadyForDev, TransitionCodes.InQA);
                 }
                 else
                 {
@@ -99,9 +72,14 @@ namespace ReadData.Utilities
             }
         }
 
-        public string getDoneDate()
+        public double getTotalDevelopmentTime()
         {
-           return issue.transitions.Last(j => TransitionCodes.QADone.Any(k => k.Equals(j.toString))).created;
+            return getTimeBetweenCodes(TransitionCodes.ReadyForDev, TransitionCodes.QADone);
+        }
+
+        public DateTime getDoneDate()
+        {
+            return issue.transitions.Last(j => TransitionCodes.QADone.Any(k => k.Equals(j.toString))).created;
         }
 
         private bool isUserStory()
@@ -114,7 +92,7 @@ namespace ReadData.Utilities
             return (issue.transitions.Any(j => j.toString.Any(x => TransitionCodes.InQA.Equals(x) && j.fromString.Any(x => TransitionCodes.QADone.Equals(x)))));
         }
 
-        private double getTimeBetweenCodes(string[] start, string[] stop, Issue story)
+        private double getTimeBetweenCodes(string[] start, string[] stop)
         {
             if (isUserStory())
             {
@@ -124,20 +102,49 @@ namespace ReadData.Utilities
             {
                 throw new Exception("Story is not 'complete'");
             }
-            string startTime = issue.transitions.First(j => start.Any(k=> k.Equals(j.toString))).created;
-            string endTime = issue.transitions.Last(j => stop.Any(k => k.Equals(j.toString))).created;
-            DateTime startDate = DateTime.Parse(startTime);
-            DateTime endDate = DateTime.Parse(endTime);
-            var timeSpan = (endDate - startDate);
+            DateTime startDate = issue.transitions.First(j => start.Any(k => k.Equals(j.toString))).created;
+            DateTime endDate = issue.transitions.Last(j => stop.Any(k => k.Equals(j.toString))).created;
+            int weekends = getWorkDaysBetweenDates(startDate, endDate);
+            return (endDate - startDate).TotalHours - (weekends * 24);
+        }
+
+        private double getTimeSpentInCode(string[] start)
+        {
+            double hoursSpent = 0;
+            foreach (var transition in issue.transitions.Where(t => start.Any(k => k.Equals(t.toString))))
+            {
+                int weekends = getWorkDaysBetweenDates(transition.created, transition.created.Add(transition.timeInStatus));
+                hoursSpent += transition.timeInStatus.TotalHours - (weekends * 24);
+            }
+            return hoursSpent;
+        }
+
+        private void calcTransitionTimes()
+        {
+            var list = issue.transitions.OrderBy(date => date.created).ToList();
+            // For every status get the time difference between the next status
+            for (int i = 0; i < list.Count - 1; i++)
+            {
+                list[i].timeInStatus = (list[i + 1].created - list[i].created);
+            }
+            issue.transitions = list.ToArray();
+        }
+
+        private int getWorkDaysBetweenDates(DateTime start, DateTime end)
+        {
+            if (start > end)
+                throw new Exception ("start date is greater than end date");
+
+            var timeSpan = (end - start);
             int weekends = 0;
             for (int i = 0; i < timeSpan.Days; i++)
             {
-                if (startDate.AddDays(i).DayOfWeek == DayOfWeek.Saturday || startDate.AddDays(i).DayOfWeek == DayOfWeek.Sunday)
+                if (start.AddDays(i).DayOfWeek == DayOfWeek.Saturday || start.AddDays(i).DayOfWeek == DayOfWeek.Sunday)
                 {
                     weekends++;
                 }
             }
-            return (endDate - startDate).TotalHours - (weekends * 24);
+            return weekends;
         }
     }
 }

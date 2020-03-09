@@ -1,4 +1,6 @@
-﻿namespace ReadData.Models
+﻿using System;
+
+namespace ReadData.Models
 {
     public class DataObject
     {
@@ -11,6 +13,7 @@
         public double qa_sitting_time { get; set; }
         public double in_qa_time { get; set; }
         public double qa_total_done_time { get; set; }
-        public string doneDate { get; set; }
+        public double time_to_done { get; set; }
+        public DateTime doneDate { get; set; }
     }
 }
